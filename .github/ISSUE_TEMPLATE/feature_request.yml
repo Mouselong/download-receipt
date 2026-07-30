@@ -1,0 +1,18 @@
+name: Feature request
+description: Suggest an improvement grounded in a real download workflow.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the situation before proposing the feature.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Proposed behavior
+    validations:
+      required: true

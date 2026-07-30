@@ -1,0 +1,40 @@
+name: Bug report
+description: Report behavior that is not working as expected.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Do not include private files or source URLs containing account tokens.
+  - type: input
+    id: version
+    attributes:
+      label: Download Receipt version
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: Windows 11 24H2
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser or download tool
+      placeholder: Microsoft Edge
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Include the steps needed to reproduce the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
