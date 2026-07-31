@@ -341,15 +341,15 @@ class ReceiptRepository:
     def mark_missing_in_folder(
         self, folder: Path, present_paths: set[str], *, recursive: bool
     ) -> int:
-        root = os.path.normcase(os.path.abspath(str(folder)))
-        present = {os.path.normcase(os.path.abspath(path)) for path in present_paths}
+        root = _canonical_path(folder)
+        present = {_canonical_path(path) for path in present_paths}
         with closing(self._connect()) as connection, connection:
             rows = connection.execute(
                 "SELECT id, path FROM receipts WHERE is_current = 1 AND is_missing = 0"
             ).fetchall()
             missing_ids: list[tuple[int]] = []
             for row in rows:
-                candidate = os.path.normcase(os.path.abspath(str(row["path"])))
+                candidate = _canonical_path(str(row["path"]))
                 try:
                     in_scope = (
                         os.path.commonpath([root, candidate]) == root
@@ -420,3 +420,13 @@ class ReceiptRepository:
             superseded_at=row["superseded_at"],
             is_duplicate=bool(row["is_duplicate"]),
         )
+
+
+def _canonical_path(path: str | Path) -> str:
+    """Normalize aliases such as Windows junctions before path comparison."""
+
+    try:
+        resolved = Path(path).resolve(strict=False)
+    except OSError:
+        resolved = Path(os.path.abspath(str(path)))
+    return os.path.normcase(os.path.normpath(str(resolved)))
