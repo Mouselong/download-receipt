@@ -33,4 +33,9 @@ jobs:
           '```text' | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
           Get-Content -LiteralPath test-output.txt | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
           '```' | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
-          if ($testExitCode -ne 0) { exit $testExitCode }
+          if ($testExitCode -ne 0) {
+            $failure = (Get-Content -LiteralPath test-output.txt -Tail 40) -join "`n"
+            $failure = $failure.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Output "::error title=Python ${{ matrix.python-version }} tests failed::$failure"
+            exit $testExitCode
+          }
