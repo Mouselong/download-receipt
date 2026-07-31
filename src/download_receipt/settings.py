@@ -14,6 +14,10 @@ class Settings:
     watch_folder: Path
     automatic_scan: bool = True
     scan_interval_seconds: int = 30
+    recursive_scan: bool = False
+    minimize_to_tray: bool = True
+    start_with_windows: bool = False
+    language: str = "auto"
 
 
 class SettingsStore:
@@ -29,6 +33,10 @@ class SettingsStore:
                 scan_interval_seconds=max(
                     10, int(payload.get("scan_interval_seconds", 30))
                 ),
+                recursive_scan=bool(payload.get("recursive_scan", False)),
+                minimize_to_tray=bool(payload.get("minimize_to_tray", True)),
+                start_with_windows=bool(payload.get("start_with_windows", False)),
+                language=str(payload.get("language", "auto")),
             )
         except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
             return Settings(watch_folder=default_downloads_folder())
@@ -39,5 +47,9 @@ class SettingsStore:
             "watch_folder": str(settings.watch_folder),
             "automatic_scan": settings.automatic_scan,
             "scan_interval_seconds": settings.scan_interval_seconds,
+            "recursive_scan": settings.recursive_scan,
+            "minimize_to_tray": settings.minimize_to_tray,
+            "start_with_windows": settings.start_with_windows,
+            "language": settings.language,
         }
         self.path.write_text(json.dumps(payload, indent=2), encoding="utf-8")

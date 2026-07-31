@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented here.
 
+## [0.2.0] - 2026-07-31
+
+### Added
+
+- Detect missing files and reconnect a receipt after a file is moved.
+- Preserve replaced files as historical receipt versions instead of overwriting them.
+- Scan subfolders when recursive scanning is enabled.
+- Export the complete local history to CSV or JSON.
+- Configure automatic scanning, interval, language, tray behavior, and Windows startup.
+- Run in the Windows system tray and provide a first-run guide.
+- Automatically use Simplified Chinese on Chinese Windows installations.
+- Organize downloads as inbox, keep, later, or remove items.
+
+### Changed
+
+- Restrict source links to normal HTTP and HTTPS addresses.
+- Expand the automated test suite to cover migration and file lifecycle behavior.
+- Smoke-test the packaged Windows executable before publishing a release.
+
 ## [0.1.0] - 2026-07-29
 
 ### Added

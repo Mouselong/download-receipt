@@ -16,6 +16,10 @@ class SettingsStoreTests(unittest.TestCase):
                 watch_folder=Path(r"D:\Downloads"),
                 automatic_scan=False,
                 scan_interval_seconds=45,
+                recursive_scan=True,
+                minimize_to_tray=False,
+                start_with_windows=True,
+                language="zh_CN",
             )
 
             store.save(expected)

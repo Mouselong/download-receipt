@@ -69,6 +69,61 @@ class DownloadScannerTests(unittest.TestCase):
 
         self.assertEqual(len(self.repository.list(filter_name="duplicates")), 2)
 
+    def test_recursive_scan_includes_nested_files(self) -> None:
+        watch_folder = self.root / "watch"
+        nested = watch_folder / "course" / "notes.pdf"
+        nested.parent.mkdir(parents=True)
+        nested.write_bytes(b"notes")
+        scanner = DownloadScanner(self.repository, provenance_reader=self.fake_provenance)
+
+        result = scanner.scan_folder(watch_folder, recursive=True)
+
+        self.assertEqual(result.added, 1)
+        self.assertIsNotNone(self.repository.get_by_path(str(nested.resolve())))
+
+    def test_deleted_file_is_marked_missing_on_next_scan(self) -> None:
+        file_path = self.root / "temporary.txt"
+        file_path.write_text("temporary", encoding="utf-8")
+        scanner = DownloadScanner(self.repository, provenance_reader=self.fake_provenance)
+        scanner.scan_folder(self.root)
+        file_path.unlink()
+
+        scanner.scan_folder(self.root)
+
+        missing = self.repository.list(filter_name="missing")
+        self.assertEqual(len(missing), 1)
+        self.assertEqual(missing[0].file_name, "temporary.txt")
+
+    def test_missing_receipt_can_be_relocated_when_content_matches(self) -> None:
+        original = self.root / "original.txt"
+        original.write_text("move me", encoding="utf-8")
+        scanner = DownloadScanner(self.repository, provenance_reader=self.fake_provenance)
+        receipt_id = scanner.scan_file(original)
+        moved = self.root / "archive" / "moved.txt"
+        moved.parent.mkdir()
+        original.replace(moved)
+        self.repository.mark_missing_in_folder(self.root, set(), recursive=False)
+
+        scanner.relocate(receipt_id, moved)
+
+        receipt = self.repository.get(receipt_id)
+        assert receipt is not None
+        self.assertEqual(receipt.path, str(moved.resolve()))
+        self.assertFalse(receipt.is_missing)
+
+    def test_relocate_rejects_different_content(self) -> None:
+        original = self.root / "original.txt"
+        original.write_text("original", encoding="utf-8")
+        scanner = DownloadScanner(self.repository, provenance_reader=self.fake_provenance)
+        receipt_id = scanner.scan_file(original)
+        original.unlink()
+        self.repository.mark_missing_in_folder(self.root, set(), recursive=False)
+        wrong = self.root / "wrong.txt"
+        wrong.write_text("different", encoding="utf-8")
+
+        with self.assertRaisesRegex(ValueError, "does not match"):
+            scanner.relocate(receipt_id, wrong)
+
 
 if __name__ == "__main__":
     unittest.main()

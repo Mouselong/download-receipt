@@ -43,12 +43,15 @@ class DownloadScanner:
 
         entries = folder.rglob("*") if recursive else folder.iterdir()
         scanned = added = updated = failed = 0
+        present_paths: set[str] = set()
         for path in entries:
             if not path.is_file() or self._should_skip(path):
                 continue
+            resolved_path = str(path.resolve())
+            present_paths.add(resolved_path)
             scanned += 1
             try:
-                existed = self.repository.get_by_path(str(path.resolve())) is not None
+                existed = self.repository.get_by_path(resolved_path) is not None
                 self.scan_file(path)
                 if existed:
                     updated += 1
@@ -57,6 +60,7 @@ class DownloadScanner:
             except (OSError, PermissionError):
                 failed += 1
 
+        self.repository.mark_missing_in_folder(folder, present_paths, recursive=recursive)
         return ScanResult(scanned, added, updated, failed)
 
     def scan_file(self, path: Path) -> int:
@@ -69,12 +73,14 @@ class DownloadScanner:
         stat = path.stat()
         existing = self.repository.get_by_path(str(path))
         modified_at = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat()
+        file_identity = _file_identity(stat)
         zone = self.provenance_reader(path)
         source_url = zone.referrer_url or zone.host_url
 
         digest: str | None = None
         unchanged = (
             existing is not None
+            and (existing.file_identity is None or existing.file_identity == file_identity)
             and existing.file_size == stat.st_size
             and existing.modified_at == modified_at
         )
@@ -94,7 +100,36 @@ class DownloadScanner:
             source_domain=domain_from_url(source_url),
             zone_id=zone.zone_id,
             sha256=digest,
+            file_identity=file_identity,
         )
+
+    def relocate(self, receipt_id: int, path: Path) -> int:
+        """Reconnect a missing receipt to the same file at a new path."""
+
+        receipt = self.repository.get(receipt_id)
+        if receipt is None or not receipt.is_current or not receipt.is_missing:
+            raise ValueError("Only a missing current receipt can be relocated.")
+        path = path.resolve()
+        if not path.is_file():
+            raise FileNotFoundError(path)
+        stat = path.stat()
+        digest = _sha256(path) if stat.st_size <= self.hash_limit_bytes else None
+        if receipt.sha256 and digest and receipt.sha256 != digest:
+            raise ValueError("The selected file does not match the saved receipt.")
+        if receipt.sha256 is None and receipt.file_size != stat.st_size:
+            raise ValueError("The selected file size does not match the saved receipt.")
+        modified_at = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat()
+        seen_at = datetime.now(tz=timezone.utc).isoformat()
+        self.repository.relocate(
+            receipt_id,
+            new_path=str(path),
+            file_size=stat.st_size,
+            modified_at=modified_at,
+            file_identity=_file_identity(stat),
+            sha256=digest,
+            seen_at=seen_at,
+        )
+        return receipt_id
 
     @staticmethod
     def _should_skip(path: Path) -> bool:
@@ -109,3 +144,11 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: file_handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _file_identity(stat: object) -> str | None:
+    device = int(getattr(stat, "st_dev", 0))
+    inode = int(getattr(stat, "st_ino", 0))
+    if not inode:
+        return None
+    return f"{device:x}:{inode:x}"

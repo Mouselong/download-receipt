@@ -61,13 +61,26 @@ def read_zone_identifier(file_path: Path) -> ZoneInfo:
 def domain_from_url(url: str | None) -> str | None:
     """Return a display-friendly domain for an HTTP(S) URL."""
 
-    if not url:
+    safe_url = safe_source_url(url)
+    if not safe_url:
         return None
-    hostname = urlparse(url).hostname
+    hostname = urlparse(safe_url).hostname
     if not hostname:
         return None
     hostname = hostname.lower()
     return hostname[4:] if hostname.startswith("www.") else hostname
+
+
+def safe_source_url(url: str | None) -> str | None:
+    """Return a source URL only when it is a normal HTTP(S) web address."""
+
+    if not url:
+        return None
+    candidate = url.strip()
+    parsed = urlparse(candidate)
+    if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname:
+        return None
+    return candidate
 
 
 def _clean_value(value: str | None) -> str | None:

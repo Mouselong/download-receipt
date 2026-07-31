@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import unittest
 
-from download_receipt.provenance import domain_from_url, parse_zone_identifier
+from download_receipt.provenance import (
+    domain_from_url,
+    parse_zone_identifier,
+    safe_source_url,
+)
 
 
 class ZoneIdentifierTests(unittest.TestCase):
@@ -27,6 +31,17 @@ HostUrl=https://cdn.example.com/files/manual.pdf
 
     def test_domain_is_normalized(self) -> None:
         self.assertEqual(domain_from_url("https://www.Example.COM/path"), "example.com")
+
+    def test_only_http_and_https_sources_are_openable(self) -> None:
+        self.assertEqual(
+            safe_source_url(" https://example.com/file "), "https://example.com/file"
+        )
+        self.assertIsNone(safe_source_url("file://server/share/file.exe"))
+        self.assertIsNone(safe_source_url("ms-settings:privacy"))
+        self.assertIsNone(safe_source_url("javascript:alert(1)"))
+
+    def test_domain_rejects_non_web_protocols(self) -> None:
+        self.assertIsNone(domain_from_url("file://server/share/file.exe"))
         self.assertIsNone(domain_from_url("not-a-url"))
         self.assertIsNone(domain_from_url(None))
 
