@@ -23,12 +23,15 @@ context in a local database while it is still available.
 - Reads `HostUrl`, `ReferrerUrl`, and `ZoneId` from `Zone.Identifier`.
 - Searches by file name, source domain, URL, or personal note.
 - Opens the file, its folder, or the source page in one click.
+- Copies the source URL or local path with one click.
+- Sorts receipts by saved time, file size, or file name.
 - Finds duplicate files using SHA-256 fingerprints up to 200 MB.
 - Marks files that were moved or deleted and lets you reconnect them.
 - Keeps older receipts when a file at the same path is replaced.
 - Optionally scans subfolders and runs from the Windows system tray.
 - Exports the complete history to CSV or JSON for backup and analysis.
 - Turns the Downloads folder into an inbox with keep, later, and remove states.
+- Reports checked, added, refreshed, and failed files after each scan.
 - Keeps all data in a local SQLite database with no account or telemetry.
 
 ## Install
@@ -94,8 +97,8 @@ pystray provide the system-tray integration. Run the test suite with:
 python -m unittest discover -s tests -v
 ```
 
-The project uses a `src` layout, separates UI, scanning, parsing, and persistence,
-and runs tests on Windows through GitHub Actions. Pushing a tag such as `v0.2.0`
+The project uses a `src` layout, separates UI, scanning, parsing, sorting, and persistence,
+and runs tests on Windows through GitHub Actions. Pushing a tag such as `v0.3.0`
 builds a standalone executable and attaches it to a GitHub Release.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and the

@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented here.
 
+## [0.3.0] - 2026-08-05
+
+### Added
+
+- Copy a receipt's source URL or local path with one click.
+- Sort receipts by saved time, file size, or file name.
+- Show the number of files checked, added, refreshed, and failed after a scan.
+- Add automated tests for receipt sorting.
+- Document the new controls in the English and Simplified Chinese READMEs.
+
 ## [0.2.0] - 2026-07-31
 
 ### Added

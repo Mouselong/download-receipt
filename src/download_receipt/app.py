@@ -22,6 +22,7 @@ from .models import Receipt
 from .paths import app_data_folder
 from .provenance import safe_source_url
 from .scanner import DownloadScanner, ScanResult
+from .sorting import SORT_OPTIONS, sort_receipts
 from .settings import SettingsStore
 from .startup import set_startup_enabled
 
@@ -82,8 +83,10 @@ class ReceiptApp(tk.Tk):
         self.filter_codes = {self.tr(label): code for label, code in FILTER_NAMES}
         self.disposition_codes = {self.tr(label): code for label, code in DISPOSITIONS}
         self.disposition_labels = {code: label for label, code in self.disposition_codes.items()}
+        self.sort_codes = {self.tr(label): code for label, code in SORT_OPTIONS}
         self.search_var = tk.StringVar()
         self.filter_var = tk.StringVar(value=self.tr("All receipts"))
+        self.sort_var = tk.StringVar(value=self.tr("Newest first"))
         self.folder_var = tk.StringVar(value=str(self.settings.watch_folder))
         self.status_var = tk.StringVar(value=self.tr("Ready"))
         self.summary_var = tk.StringVar(value="0")
@@ -245,6 +248,16 @@ class ReceiptApp(tk.Tk):
         ttk.Label(controls, text=self.tr("Search")).pack(side="left", padx=(0, 8))
         search = ttk.Entry(controls, textvariable=self.search_var)
         search.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        ttk.Label(controls, text=self.tr("Sort")).pack(side="right", padx=(12, 6))
+        sort_box = ttk.Combobox(
+            controls,
+            textvariable=self.sort_var,
+            values=list(self.sort_codes),
+            state="readonly",
+            width=16,
+        )
+        sort_box.pack(side="right")
+        sort_box.bind("<<ComboboxSelected>>", lambda _event: self.refresh_receipts())
         filter_box = ttk.Combobox(
             controls,
             textvariable=self.filter_var,
@@ -374,6 +387,17 @@ class ReceiptApp(tk.Tk):
             action_row_two, text=self.tr("Remove receipt"), command=self.remove_receipt
         ).pack(side="right")
 
+        action_row_three = ttk.Frame(panel, style="Surface.TFrame")
+        action_row_three.pack(fill="x", pady=(8, 0))
+        self.copy_source_button = ttk.Button(
+            action_row_three, text=self.tr("Copy source URL"), command=self.copy_source
+        )
+        self.copy_source_button.pack(side="left")
+        self.copy_path_button = ttk.Button(
+            action_row_three, text=self.tr("Copy local path"), command=self.copy_path
+        )
+        self.copy_path_button.pack(side="left", padx=8)
+
     @staticmethod
     def _detail_field(
         parent: ttk.Frame,
@@ -394,7 +418,10 @@ class ReceiptApp(tk.Tk):
 
     def refresh_receipts(self, select_id: int | None = None) -> None:
         filter_name = self.filter_codes.get(self.filter_var.get(), "all")
-        receipts = self.repository.list(self.search_var.get(), filter_name)
+        receipts = sort_receipts(
+            self.repository.list(self.search_var.get(), filter_name),
+            self.sort_codes.get(self.sort_var.get(), "newest"),
+        )
         self.receipts = {receipt.id: receipt for receipt in receipts}
         current = select_id or self.selected_id
         self.tree.delete(*self.tree.get_children())
@@ -466,6 +493,7 @@ class ReceiptApp(tk.Tk):
             values = (self.tr("Select a receipt"), "-", self.tr("Not available"), "-", "-", "-", "-")
             note = ""
             can_open = can_relocate = can_open_source = False
+            can_copy_path = can_copy_source = False
             can_organize = False
             disposition_label = self.tr("Inbox")
         else:
@@ -492,6 +520,8 @@ class ReceiptApp(tk.Tk):
             can_open = receipt.is_current and not receipt.is_missing
             can_relocate = receipt.is_current and receipt.is_missing
             can_open_source = source_url is not None
+            can_copy_path = True
+            can_copy_source = source_url is not None
             can_organize = receipt.is_current
             disposition_label = self.disposition_labels.get(
                 receipt.disposition, self.tr("Inbox")
@@ -516,6 +546,8 @@ class ReceiptApp(tk.Tk):
         self.open_folder_button.configure(state="normal" if can_open else "disabled")
         self.relocate_button.configure(state="normal" if can_relocate else "disabled")
         self.open_source_button.configure(state="normal" if can_open_source else "disabled")
+        self.copy_source_button.configure(state="normal" if can_copy_source else "disabled")
+        self.copy_path_button.configure(state="normal" if can_copy_path else "disabled")
 
     def begin_scan(self, silent: bool = False) -> None:
         if self.scan_running:
@@ -617,6 +649,30 @@ class ReceiptApp(tk.Tk):
             messagebox.showwarning(self.tr("Unsafe source URL"), str(raw_url))
         else:
             webbrowser.open(url)
+
+    def _copy_text(self, value: str, status: str) -> None:
+        self.clipboard_clear()
+        self.clipboard_append(value)
+        self.update()
+        self.status_var.set(status)
+
+    def copy_source(self) -> None:
+        receipt = self._selected_receipt()
+        if not receipt:
+            return
+        raw_url = receipt.referrer_url or receipt.host_url
+        url = safe_source_url(raw_url)
+        if not raw_url:
+            messagebox.showinfo(self.tr("No source URL"), self.tr("Not stored by the browser"))
+        elif not url:
+            messagebox.showwarning(self.tr("Unsafe source URL"), str(raw_url))
+        else:
+            self._copy_text(url, self.tr("Source URL copied"))
+
+    def copy_path(self) -> None:
+        receipt = self._selected_receipt()
+        if receipt:
+            self._copy_text(receipt.path, self.tr("Local path copied"))
 
     def relocate_file(self) -> None:
         receipt = self._selected_receipt()
@@ -798,13 +854,13 @@ class ReceiptApp(tk.Tk):
                     self.scan_button.configure(state="normal", text=self.tr("Scan now"))
                     if self.language == "zh_CN":
                         status = (
-                            f"扫描完成：新增 {result.added}，刷新 {result.updated}，"
-                            f"不可用 {result.failed}"
+                            f"扫描完成：检查 {result.scanned}，新增 {result.added}，"
+                            f"刷新 {result.updated}，失败 {result.failed}"
                         )
                     else:
                         status = (
-                            f"Scan complete: {result.added} new, {result.updated} refreshed, "
-                            f"{result.failed} unavailable"
+                            f"Scan complete: {result.scanned} checked, {result.added} new, "
+                            f"{result.updated} refreshed, {result.failed} failed"
                         )
                     self.status_var.set(status)
                     self.refresh_receipts()
